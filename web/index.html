@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>计算器（HTML 版）</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --num: #374151;
+      --op: #4b5563;
+      --accent: #f97316;
+      --text: #f9fafb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: radial-gradient(circle at top, #1e293b, var(--bg));
+      color: var(--text);
+    }
+    .calc {
+      width: min(92vw, 420px);
+      background: rgba(17, 24, 39, 0.95);
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.45);
+    }
+    .display {
+      width: 100%;
+      min-height: 96px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      background: #1f2937;
+      color: #fff;
+      text-align: right;
+      padding: 16px;
+      font-size: 2rem;
+      overflow-wrap: anywhere;
+      margin-bottom: 14px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    button {
+      border: 0;
+      border-radius: 12px;
+      min-height: 58px;
+      color: #fff;
+      font-size: 1.35rem;
+      cursor: pointer;
+      transition: transform .05s ease, filter .15s ease;
+    }
+    button:active { transform: scale(.98); }
+    button:hover { filter: brightness(1.08); }
+    .num { background: var(--num); }
+    .op { background: var(--op); }
+    .accent { background: var(--accent); }
+    .span-2 { grid-column: span 2; }
+    .span-rows-2 { grid-row: span 2; }
+  </style>
+</head>
+<body>
+  <main class="calc" aria-label="calculator">
+    <div class="display" id="display">0</div>
+    <section class="grid" id="keys">
+      <button class="op" data-action="clear">C</button>
+      <button class="op" data-action="delete">⌫</button>
+      <button class="op" data-op="/">÷</button>
+      <button class="op" data-op="*">×</button>
+
+      <button class="num" data-num="7">7</button>
+      <button class="num" data-num="8">8</button>
+      <button class="num" data-num="9">9</button>
+      <button class="op" data-op="-">-</button>
+
+      <button class="num" data-num="4">4</button>
+      <button class="num" data-num="5">5</button>
+      <button class="num" data-num="6">6</button>
+      <button class="op" data-op="+">+</button>
+
+      <button class="num" data-num="1">1</button>
+      <button class="num" data-num="2">2</button>
+      <button class="num" data-num="3">3</button>
+      <button class="accent span-rows-2" data-action="equals">=</button>
+
+      <button class="num span-2" data-num="0">0</button>
+      <button class="num" data-num=".">.</button>
+    </section>
+  </main>
+
+  <script>
+    const display = document.getElementById('display');
+    let expr = '';
+
+    const update = () => {
+      display.textContent = expr || '0';
+    };
+
+    const isOperator = (ch) => ['+', '-', '*', '/'].includes(ch);
+
+    const tokenize = (input) => {
+      if (!input.trim()) throw new Error('empty');
+      const tokens = [];
+      let num = '';
+      for (const ch of input) {
+        if ((ch >= '0' && ch <= '9') || ch === '.') {
+          num += ch;
+        } else if (isOperator(ch)) {
+          if (!num) throw new Error('bad format');
+          tokens.push(num, ch);
+          num = '';
+        } else {
+          throw new Error('invalid');
+        }
+      }
+      if (num) tokens.push(num);
+      if (!tokens.length || isOperator(tokens[tokens.length - 1])) throw new Error('trailing');
+      return tokens;
+    };
+
+    const compute = (tokens) => {
+      const stack = [];
+      let op = '+';
+      for (const token of tokens) {
+        if (isOperator(token)) {
+          op = token;
+          continue;
+        }
+        const n = Number(token);
+        if (Number.isNaN(n)) throw new Error('nan');
+        if (op === '+') stack.push(n);
+        if (op === '-') stack.push(-n);
+        if (op === '*') stack[stack.length - 1] *= n;
+        if (op === '/') {
+          if (n === 0) throw new Error('zero');
+          stack[stack.length - 1] /= n;
+        }
+      }
+      return stack.reduce((a, b) => a + b, 0);
+    };
+
+    const evaluate = () => {
+      try {
+        const val = compute(tokenize(expr));
+        expr = Number.isInteger(val) ? String(val) : String(val);
+      } catch {
+        expr = 'Error';
+      }
+      update();
+    };
+
+    document.getElementById('keys').addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+
+      const num = btn.dataset.num;
+      const op = btn.dataset.op;
+      const action = btn.dataset.action;
+
+      if (action === 'clear') {
+        expr = '';
+      } else if (action === 'delete') {
+        expr = expr.slice(0, -1);
+      } else if (action === 'equals') {
+        evaluate();
+        return;
+      } else if (num !== undefined) {
+        if (expr === 'Error') expr = '';
+        expr += num;
+      } else if (op) {
+        if (expr && !isOperator(expr[expr.length - 1])) expr += op;
+      }
+      update();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      const k = e.key;
+      if ((k >= '0' && k <= '9') || k === '.') {
+        if (expr === 'Error') expr = '';
+        expr += k;
+      } else if (isOperator(k)) {
+        if (expr && !isOperator(expr[expr.length - 1])) expr += k;
+      } else if (k === 'Enter' || k === '=') {
+        e.preventDefault();
+        evaluate();
+        return;
+      } else if (k === 'Backspace') {
+        expr = expr.slice(0, -1);
+      } else if (k.toLowerCase() === 'c' || k === 'Escape') {
+        expr = '';
+      } else {
+        return;
+      }
+      update();
+    });
+
+    update();
+  </script>
+</body>
+</html>
